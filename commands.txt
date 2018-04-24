@@ -1,0 +1,174 @@
+# Create DB users and grants
+mysql -p -e "CREATE USER 'ukafka'@'%' identified by 'K*123456'"
+mysql -p -e "GRANT ALL ON *.* TO 'ukafka'@'%'"
+
+su postgres -c psql -c "CREATE ROLE ukafka LOGIN SUPERUSER PASSWORD 'K*123456'" postgres
+
+# List all connectors
+curl -H "Accept:application/json" http://pl18-kafka-con:8083/connectors/
+
+# Connectors inventory
+curl -i -X GET -H "Accept:application/json" http://pl18-kafka-con:8083/connectors/inventory-connector
+
+# Connector configuration
+curl http://pl18-kafka-con:8083/connectors/jdbc-sink | jq
+
+# Status
+curl http://pl18-kafka-con:8083/connectors/pl18_db-sink-employees/status | jq
+
+# Restart the connector
+curl -X POST http://pl18-kafka-con:8083/connectors/pl18_db-sink-departments/tasks/0/restart
+
+# Remove connector
+curl -X DELETE http://pl18-kafka-con:8083/connectors/pl18_db-sink-employees
+
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://pl18-kafka-con:8083/connectors/ -d '
+{
+    "name": "pl18_db-sink-employees",
+    "config": {
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "tasks.max": "1",
+        "topics": "employees",
+        "connection.url": "jdbc:postgresql://pl18-pg1:5432/pl18_db?user=ukafka&password=K*123456",
+        "transforms": "unwrap",
+        "transforms.unwrap.type": "io.debezium.transforms.UnwrapFromEnvelope",
+        "auto.create": "true",
+        "insert.mode": "upsert",
+        "pk.fields": "emp_no",
+        "pk.mode": "record_value"
+    }
+}'
+
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://pl18-kafka-con:8083/connectors/ -d '
+{
+    "name": "pl18_db-sink-departments",
+    "config": {
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "tasks.max": "1",
+        "topics": "departments",
+        "connection.url": "jdbc:postgresql://pl18-pg1:5432/pl18_db?user=ukafka&password=K*123456",
+        "transforms": "unwrap",
+        "transforms.unwrap.type": "io.debezium.transforms.UnwrapFromEnvelope",
+        "auto.create": "true",
+        "insert.mode": "upsert",
+        "pk.fields": "dept_no",
+        "pk.mode": "record_value"
+    }
+}'
+
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://pl18-kafka-con:8083/connectors/ -d '
+{
+    "name": "pl18_db-sink-dept_manager",
+    "config": {
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "tasks.max": "1",
+        "topics": "dept_manager",
+        "connection.url": "jdbc:postgresql://pl18-pg1:5432/pl18_db?user=ukafka&password=K*123456",
+        "transforms": "unwrap",
+        "transforms.unwrap.type": "io.debezium.transforms.UnwrapFromEnvelope",
+        "auto.create": "true",
+        "insert.mode": "upsert",
+        "pk.fields": "emp_no,dept_no",
+        "pk.mode": "record_value"
+    }
+}'
+
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://pl18-kafka-con:8083/connectors/ -d '
+{
+    "name": "pl18_db-sink-dept_emp",
+    "config": {
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "tasks.max": "1",
+        "topics": "dept_emp",
+        "connection.url": "jdbc:postgresql://pl18-pg1:5432/pl18_db?user=ukafka&password=K*123456",
+        "transforms": "unwrap",
+        "transforms.unwrap.type": "io.debezium.transforms.UnwrapFromEnvelope",
+        "auto.create": "true",
+        "insert.mode": "upsert",
+        "pk.fields": "emp_no,dept_no",
+        "pk.mode": "record_value"
+    }
+}'
+
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://pl18-kafka-con:8083/connectors/ -d '
+{
+    "name": "pl18_db-sink-titles",
+    "config": {
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "tasks.max": "1",
+        "topics": "titles",
+        "connection.url": "jdbc:postgresql://pl18-pg1:5432/pl18_db?user=ukafka&password=K*123456",
+        "transforms": "unwrap",
+        "transforms.unwrap.type": "io.debezium.transforms.UnwrapFromEnvelope",
+        "auto.create": "true",
+        "insert.mode": "upsert",
+        "pk.fields": "emp_no,title, from_date",
+        "pk.mode": "record_value"
+    }
+}'
+
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://pl18-kafka-con:8083/connectors/ -d '
+{
+    "name": "pl18_db-sink-salaries",
+    "config": {
+        "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+        "tasks.max": "1",
+        "topics": "salaries",
+        "connection.url": "jdbc:postgresql://pl18-pg1:5432/pl18_db?user=ukafka&password=K*123456",
+        "transforms": "unwrap",
+        "transforms.unwrap.type": "io.debezium.transforms.UnwrapFromEnvelope",
+        "auto.create": "true",
+        "insert.mode": "upsert",
+        "pk.fields": "emp_no, from_date",
+        "pk.mode": "record_value"
+    }
+}'
+
+
+
+
+curl -i -X POST -H "Accept:application/json" -H "Content-Type:application/json" http://pl18-kafka-con:8083/connectors/ -d '
+{
+    "name": "pl18_db-connector",
+    "config": {
+        "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+        "tasks.max": "1",
+        "database.hostname": "pl18-pxc1",
+        "database.port": "3306",
+        "database.user": "ukafka",
+        "database.password": "K*123456",
+        "database.server.id": "10001",
+        "database.server.name": "pl18-pxc-node1",
+        "database.whitelist": "pl18_db",
+        "database.history.kafka.bootstrap.servers": "pl18-kafka:9092",
+        "database.history.kafka.topic": "schema-changes.inventory",
+        "transforms": "route",
+        "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+        "transforms.route.regex": "([^.]+)\\.([^.]+)\\.([^.]+)",
+        "transforms.route.replacement": "$3"
+    }
+}'
+
+
+#### Change configuration
+curl -X PUT -H "Content-Type: application/json" --data '
+    {
+        "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+        "tasks.max": "1",
+        "database.hostname": "pl18-pxc1",
+        "database.port": "3306",
+        "database.user": "ukafka",
+        "database.password": "K*123456",
+        "database.server.id": "10001",
+        "database.server.name": "pl18-pxc-node1",
+        "database.whitelist": "employees",
+        "database.history.kafka.bootstrap.servers": "pl18-kafka:9092",
+        "database.history.kafka.topic": "schema-changes.inventory",
+        "transforms": "route",
+        "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+        "transforms.route.regex": "([^.]+)\\.([^.]+)\\.([^.]+)",
+        "transforms.route.replacement": "$3",
+        "name":"employees-connector"
+    }
+' http://pl18-kafka-con:8083/connectors/employees-connector/config
+

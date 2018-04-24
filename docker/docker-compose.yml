@@ -1,0 +1,112 @@
+version: '3'
+services:
+
+######################## PostgreSQL ######################################################
+    pl18-pgsql-node1:
+        image: postgres:9.6-alpine
+        container_name: pl18-pg1
+        networks:
+            - pl18-net
+        ports:
+            - "65432:5432"
+        volumes:
+            - ~/pl18/data/pgsql/db1:/var/lib/pgsql/9.6
+            - ~/pl18/data/pgsql/archive:/var/lib/pgsql/archive
+        environment:
+            PGDATA: "/var/lib/pgsql/9.6/data"
+            POSTGRES_USER: "ukafka"
+            POSTGRES_PASSWORD: "K*123456"
+            POSTGRES_DB: "pl18_db"
+
+######################## XtraDB Cluster ##################################################
+    pl18-pxc-node1:
+        image: perconalab/percona-xtradb-cluster:latest
+        container_name: pl18-pxc1
+        environment:
+            #MYSQL_ROOT_PASSWORD: ""
+            MYSQL_ALLOW_EMPTY_PASSWORD: 1
+            CLUSTER_NAME: pl18-pxc 
+            # SST user and password
+            MYSQL_USER: "sstuser"
+            MYSQL_PASSWORD: "s3cretPass"
+            XTRABACKUP_PASSWORD: "xtr4p4ss"
+            MYSQL_PWD: "xtr4p4ss"
+        networks:
+            - pl18-net
+        ports:
+            - "63306:3306"
+        volumes:
+            - ~/pl18/data/mysql/db1/data:/var/lib/mysql
+            - ~/pl18/data/mysql/db1/config:/etc/mysql
+            - ~/pl18/data/sample:/sample
+#
+######################## Zookeeper #######################################################
+    pl18-zookeeper:
+        container_name: pl18-zoo
+        networks:
+            - pl18-net
+        image: debezium/zookeeper:0.7.5
+        ports:
+            - "62181:2181"
+        volumes:
+            - ~/pl18/data/zookeeper/data:/zookeeper/data
+            - ~/pl18/data/zookeeper/logs:/zookeeper/logs
+            - ~/pl18/data/zookeeper/config:/zookeeper/conf
+            - ~/pl18/data/zookeeper/tmp:/tmp
+#
+######################## Apache Kafka ####################################################
+    pl18-kafka:
+        container_name: pl18-kafka
+        image: debezium/kafka:0.7.5
+        networks:
+            pl18-net:
+                ipv4_address: 172.28.99.100
+        ports:
+             - "9092:9092"
+        links:
+            - "pl18-zookeeper"
+        depends_on: 
+            - "pl18-zookeeper"
+        environment:
+            KAFKA_LISTENERS: "PLAINTEXT://:9092"
+            KAFKA_ZOOKEEPER_CONNECT: pl18-zoo:2181
+            # Debezium configurations
+            BROKER_ID: 1000
+            ZOOKEEPER_CONNECT: pl18-zoo:2181
+        volumes:
+            - ~/pl18/data/kafka/data:/kafka/data
+            - ~/pl18/data/kafka/logs:/kafka/logs
+            - ~/pl18/data/kafka/config:/kafka/config
+            - ~/pl18/data/kafka/tmp:/tmp
+       
+    pl18-kafka-connector:
+        container_name: pl18-kafka-con
+        image: debezium/connect:0.7.5
+        networks:
+            - pl18-net
+        ports:
+            - "8083:8083"
+        links:
+            - "pl18-kafka"
+            - "pl18-zookeeper"
+        depends_on: 
+            - "pl18-kafka"
+        environment:
+            GROUP_ID: 1000
+            BOOTSTRAP_SERVERS: "172.28.99.100:9092"
+            CONFIG_STORAGE_TOPIC: "pl18"
+            OFFSET_STORAGE_TOPIC: "pl18_offset"
+            KAFKA_CONNECT_PLUGINS_DIR: "/kafka/plugins"
+        volumes:
+           - ~/pl18/data/kafka_connector/plugins:/kafka/plugins
+           - ~/pl18/data/kafka_connector/tmp:/tmp
+
+######################## Network #########################################################
+networks:
+    pl18-net:
+        ipam:
+            driver: default
+            config:
+                - subnet: 172.28.99.0/16
+
+
